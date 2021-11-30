@@ -68,7 +68,9 @@ for batch_size, subset_ratio in itertools.product(batch_range, stab_ratio_range)
 	num_classes = np.unique(data.train.labels).shape[0]
 
 	# Set up model and optimizer
+	# on instancie le modèle ici
 	model = network_module.Model(num_classes, batch_size, network_size, subset_ratio, num_features, dropout, l2, l0, rho)
+	# on check sa loss ; celle qui sera optimisée par l'optimizer !!!
 	loss = utils_model.get_loss(model, args)
 	network_vars, sparse_vars, stable_var = read_config_network(config, model)
 
@@ -89,7 +91,7 @@ for batch_size, subset_ratio in itertools.product(batch_range, stab_ratio_range)
 		os.makedirs(output_dir)
 
 
-	# Training loop for each fold
+	# Training loop for each fold (!!!)
 	for experiment in range(num_experiments):
 
 		# Set up summary and results folder
@@ -128,7 +130,10 @@ for batch_size, subset_ratio in itertools.product(batch_range, stab_ratio_range)
 				
 				if train_step % num_output_steps == 0:
 
+					# On ne print pas les résultats de validation à chaque step d'optimizer
+
 					# Update results
+					# dict_exp store les résultats des experiments
 					dict_exp = utils_model.update_dict(dict_exp, args, sess, model, test_dict, experiment)
 
 					# Print and Save current status
@@ -148,6 +153,9 @@ for batch_size, subset_ratio in itertools.product(batch_range, stab_ratio_range)
 						training_time = 0.0
 
 				# Train model with current batch
+				# Ces simples lignes permettent de faire un forward pass, 
+				# de calculer les losses (et d'updater ts les attributs du modèle),
+				# et de faire une step de l'optimizer sur les losses
 				start = timer()
 				sess.run(optimizer, feed_dict=nat_dict)
 				end = timer()
@@ -158,6 +166,7 @@ for batch_size, subset_ratio in itertools.product(batch_range, stab_ratio_range)
 			utils_print.update_dict_output(dict_exp, experiment, sess, test_acc, model, test_dict, num_iters)
 			total_test_acc += test_acc
 			x_test, y_test = data.test.images, data.test.labels.reshape(-1)
+			# on isole le best model issu de la CV
 			best_model = utils_model.get_best_model(dict_exp, experiment, args, num_classes, batch_size, subset_ratio, num_features, spec, network_module)
 			utils_print.update_adv_acc(args, best_model, x_test, y_test, experiment, dict_exp)
 
