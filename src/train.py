@@ -56,9 +56,11 @@ tf.set_random_seed(seed)
 if rho == 0 and not is_stable and l0 == 0:
 	min_train_steps = 0
 
-##
-for distillation_round in range(args.distillation):
-# Training Loop for cross validation
+# À NE PAS METTRE ICI
+for distillation_round in range(args.n_distillations):
+
+	# Training Loop for cross validation
+	# RMQ : NE CHANGE RIEN POUR UNE BATCH SIZE ET UN SUBSET RATIO FIXÉS !!!
 	for batch_size, subset_ratio in itertools.product(batch_range, stab_ratio_range):
 
 		print("Batch Size:", batch_size, " ; stability subset ratio:", subset_ratio, " ; dropout value:", dropout)
@@ -69,7 +71,7 @@ for distillation_round in range(args.distillation):
 		num_classes = np.unique(data.train.labels).shape[0]
 
 		# Set up model and optimizer
-		# on instancie le modèle ici
+		# on instancie le modèle ici (rmq : ça n'est qu'un placeholder pr le moment)
 		model = network_module.Model(num_classes, batch_size, network_size, subset_ratio, num_features, dropout, l2, l0, rho)
 		# on check sa loss ; celle qui sera optimisée par l'optimizer !!!
 		loss = utils_model.get_loss(model, args)
@@ -91,8 +93,10 @@ for distillation_round in range(args.distillation):
 		if not os.path.exists(output_dir):
 			os.makedirs(output_dir)
 
+		# METTRE LA FOR LOOP SUR LES DISTILLATION ROUNDS ICI!!!
 
 		# Training loop for each fold (!!!)
+		# Pas vraiment pour each fold ; davantage pour des seeds différentes, qui affectent l'init du model ET le splitting du dataset
 		for experiment in range(num_experiments):
 
 			# Set up summary and results folder
@@ -115,11 +119,12 @@ for distillation_round in range(args.distillation):
 
 			# Initialize tensorflow session
 			with tf.Session() as sess:
+
+				# Ici, on démarre véritablement l'entraînement car on initialise les variables
 				sess.run(tf.global_variables_initializer())
 				training_time = 0.0
 
 				best_val_acc, test_acc, num_iters = 0, 0, 0
-
 
 				# Iterate through each data batch
 				for train_step in range(max_train_steps):
@@ -130,7 +135,6 @@ for distillation_round in range(args.distillation):
 
 
 					if train_step % num_output_steps == 0:
-
 						# On ne print pas les résultats de validation à chaque step d'optimizer
 
 						# Update results
@@ -174,6 +178,7 @@ for distillation_round in range(args.distillation):
 				## Saving the distillation outputs to reaccess them later
 				np.save('outputs/distillation_' + str(args.data_set) + '/h_layer_size_' + str(args.l1_size) + '_round_' +
 						str(distillation_round) + '_l2coef_' + str(args.l2) + '_alphacoef_' + str(args.alpha) + '.npy',
+						# ATTENTION: le faire pour le best model plutôt ! MAIS pq ne le fait-on pas plutôt après ts les experiments ?
 						np.concatenate((sess.run(model.pre_softmax, feed_dict=val_dict),
 										sess.run(model.pre_softmax, feed_dict=train_dict))))
 
