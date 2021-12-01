@@ -33,6 +33,8 @@ def define_parser():
 
 	parser.add_argument("--val_size", type=float, default=0.20, help="percentage of data used for validation")
 
+	parser.add_argument("--n_distillations", type=int, default=1, help="nb of rounds of self-distillation for the NN; 1 means no self-distillation")
+
 	return parser
 
 

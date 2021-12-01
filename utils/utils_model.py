@@ -15,16 +15,30 @@ mask_names = [w_vars[l] + str("_masked") for l in range(len(w_vars))]
 
 
 def get_loss(model, args):
-    loss = model.xent + model.regularizer
+    if args.n_distillations == 1:
+        loss = model.xent + model.regularizer
+    elif args.n_distillations > 1:
+        loss = model.distil_loss + model.regularizer
+
+    # TODO: continuer de rajouter conditions sur self_distill pr les différentes losses 
     if args.rho and not args.is_stable:
-        loss = model.robust_xent
+        if args.n_distillations > 1:
+            loss = model.distil_robust_y_xent
+        elif args.n_distillations == 1:
+            loss = model.robust_xent
 
     elif args.is_stable:
         if args.rho:
-            loss = model.robust_stable_xent
+            if args.n_distillations > 1:
+                loss = model.distil_robust_stable_xent
+            elif args.n_distillations == 1:
+                loss = model.robust_stable_xent
         else:
-            loss = model.stable_xent
-
+            if args.n_distillations > 1:
+                loss = model.distil_stable_xent
+            elif args.n_distillations == 1:
+                loss = model.stable_xent
+                
     return loss
 
 
