@@ -132,30 +132,30 @@ class Model(object):
 
 
     # LOSSES WITH SELF-DISTILLATION:
-    try:
-      # basic L2 distil loss
-      self.distil_loss = tf.reduce_mean(tf.squared_difference(tf.nn.softmax(self.y_input_distil), self.logits))
-      # robust xent distil loss
-      y_xent_distil = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.y_input_distil, logits=self.pre_softmax)
-      data_range_ = tf.range(tf.shape(self.y_input_distil)[0])
-      indices_ = tf.map_fn(lambda n: tf.stack([tf.cast(self.y_input_distil[n], tf.int32), n]), data_range_)
-      pre_softmax_t_ = tf.transpose(self.pre_softmax)
-      self.nom_exponent = pre_softmax_t_ -  tf.gather_nd(pre_softmax_t_, indices_)
-      sum_exps_ = 0
-      for i in range(num_classes):
-        grad_ = tf.gradients(self.nom_exponent[i], self.x_input)
-        exponent_ = rho*tf.reduce_sum(tf.abs(grad_[0]), axis=1) + self.nom_exponent[i]
-        sum_exps_+=tf.exp(exponent_)
-      distil_robust_y_xent = tf.log(sum_exps_)
-      self.distil_robust_xent = tf.reduce_mean(distil_robust_y_xent)
-      # stable xent distil loss
-      self.distil_stable_data_loss = tf.nn.relu(y_xent_distil - getattr(self, stable_var))
-      self.distil_stable_xent = getattr(self, stable_var) + 1/(self.subset_ratio) * tf.reduce_mean(self.distil_stable_data_loss)
-      # robust stable xent distil loss
-      self.distil_rob_stable_data_loss = tf.nn.relu(distil_robust_y_xent - getattr(self, stable_var))
-      self.distil_robust_stable_xent = getattr(self, stable_var) + 1/(self.subset_ratio) * tf.reduce_mean(self.distil_rob_stable_data_loss)
-    except:
-      print("No distillation")
+    # try:
+    #   # basic L2 distil loss
+    #   self.distil_loss = tf.reduce_mean(tf.squared_difference(tf.nn.softmax(self.y_input_distil), self.logits))
+    #   # robust xent distil loss
+    #   y_xent_distil = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.y_input_distil, logits=self.pre_softmax)
+    #   data_range_ = tf.range(tf.shape(self.y_input_distil)[0])
+    #   indices_ = tf.map_fn(lambda n: tf.stack([tf.cast(self.y_input_distil[n], tf.int32), n]), data_range_)
+    #   pre_softmax_t_ = tf.transpose(self.pre_softmax)
+    #   self.nom_exponent = pre_softmax_t_ -  tf.gather_nd(pre_softmax_t_, indices_)
+    #   sum_exps_ = 0
+    #   for i in range(num_classes):
+    #     grad_ = tf.gradients(self.nom_exponent[i], self.x_input)
+    #     exponent_ = rho*tf.reduce_sum(tf.abs(grad_[0]), axis=1) + self.nom_exponent[i]
+    #     sum_exps_+=tf.exp(exponent_)
+    #   distil_robust_y_xent = tf.log(sum_exps_)
+    #   self.distil_robust_xent = tf.reduce_mean(distil_robust_y_xent)
+    #   # stable xent distil loss
+    #   self.distil_stable_data_loss = tf.nn.relu(y_xent_distil - getattr(self, stable_var))
+    #   self.distil_stable_xent = getattr(self, stable_var) + 1/(self.subset_ratio) * tf.reduce_mean(self.distil_stable_data_loss)
+    #   # robust stable xent distil loss
+    #   self.distil_rob_stable_data_loss = tf.nn.relu(distil_robust_y_xent - getattr(self, stable_var))
+    #   self.distil_robust_stable_xent = getattr(self, stable_var) + 1/(self.subset_ratio) * tf.reduce_mean(self.distil_rob_stable_data_loss)
+    # except:
+    #   print("No distillation")
 
 
 
