@@ -56,110 +56,126 @@ tf.set_random_seed(seed)
 if rho == 0 and not is_stable and l0 == 0:
 	min_train_steps = 0
 
-
+##
+for distillation_round in range(args.distillation):
 # Training Loop for cross validation
-for batch_size, subset_ratio in itertools.product(batch_range, stab_ratio_range): 
-	
-	print("Batch Size:", batch_size, " ; stability subset ratio:", subset_ratio, " ; dropout value:", dropout)
+	for batch_size, subset_ratio in itertools.product(batch_range, stab_ratio_range):
 
-	# Set up data 
-	data = input_data.load_data_set(training_size = train_size, validation_size= val_size, data_set=data_set, seed=seed)
-	num_features = data.train.images.shape[1]
-	num_classes = np.unique(data.train.labels).shape[0]
+		print("Batch Size:", batch_size, " ; stability subset ratio:", subset_ratio, " ; dropout value:", dropout)
 
-	# Set up model and optimizer
-	model = network_module.Model(num_classes, batch_size, network_size, subset_ratio, num_features, dropout, l2, l0, rho)
-	loss = utils_model.get_loss(model, args)
-	network_vars, sparse_vars, stable_var = read_config_network(config, model)
+		# Set up data
+		data = input_data.load_data_set(training_size = train_size, validation_size= val_size, data_set=data_set, seed=seed)
+		num_features = data.train.images.shape[1]
+		num_classes = np.unique(data.train.labels).shape[0]
 
-	var_list = network_vars
-	if args.l0 > 0:
-		var_list = var_list + sparse_vars
-	if args.is_stable:
-		var_list = var_list + stable_var
+		# Set up model and optimizer
+		# on instancie le modèle ici
+		model = network_module.Model(num_classes, batch_size, network_size, subset_ratio, num_features, dropout, l2, l0, rho)
+		# on check sa loss ; celle qui sera optimisée par l'optimizer !!!
+		loss = utils_model.get_loss(model, args)
+		network_vars, sparse_vars, stable_var = read_config_network(config, model)
 
-	optimizer = tf.train.AdamOptimizer(learning_rate).minimize(loss, global_step=global_step, var_list=var_list) 
+		var_list = network_vars
+		if args.l0 > 0:
+			var_list = var_list + sparse_vars
+		if args.is_stable:
+			var_list = var_list + stable_var
 
-
-	# Set up experiments
-	total_test_acc = 0
-	num_experiments, dict_exp, output_dir = init_experiements(config, args, num_classes, num_features, data) 
-
-	if not os.path.exists(output_dir):
-		os.makedirs(output_dir)
+		optimizer = tf.train.AdamOptimizer(learning_rate).minimize(loss, global_step=global_step, var_list=var_list)
 
 
-	# Training loop for each fold
-	for experiment in range(num_experiments):
+		# Set up experiments
+		total_test_acc = 0
+		num_experiments, dict_exp, output_dir = init_experiements(config, args, num_classes, num_features, data)
 
-		# Set up summary and results folder
-		directory = output_dir + '/exp_' + str(experiment) + '_l2reg_' + str(l2)
-		summary_writer = tf.summary.FileWriter(directory)
-		saver = tf.train.Saver(max_to_keep=3)
-
-		# Shuffle and split training/vaidation/testing sets
-
-		seed_i = seed*(experiment+1)
-		data = input_data.load_data_set(training_size = train_size, validation_size=val_size, data_set=data_set, seed=seed_i)
-
-		# Set up data sets for validation and testing
-		val_dict = {model.x_input: data.validation.images,
-					  model.y_input: data.validation.labels.reshape(-1)}
-
-		test_dict = {model.x_input: data.test.images,
-					  model.y_input: data.test.labels.reshape(-1)}
+		if not os.path.exists(output_dir):
+			os.makedirs(output_dir)
 
 
-		# Initialize tensorflow session
-		with tf.Session() as sess:
-			sess.run(tf.global_variables_initializer())
-			training_time = 0.0
-		
-			best_val_acc, test_acc, num_iters = 0, 0, 0
+		# Training loop for each fold (!!!)
+		for experiment in range(num_experiments):
+
+			# Set up summary and results folder
+			directory = output_dir + '/exp_' + str(experiment) + '_l2reg_' + str(l2)
+			summary_writer = tf.summary.FileWriter(directory)
+			saver = tf.train.Saver(max_to_keep=3)
+
+			# Shuffle and split training/vaidation/testing sets
+
+			seed_i = seed*(experiment+1)
+			data = input_data.load_data_set(training_size = train_size, validation_size=val_size, data_set=data_set, seed=seed_i)
+
+			# Set up data sets for validation and testing
+			val_dict = {model.x_input: data.validation.images,
+						  model.y_input: data.validation.labels.reshape(-1)}
+
+			test_dict = {model.x_input: data.test.images,
+						  model.y_input: data.test.labels.reshape(-1)}
 
 
-			# Iterate through each data batch
-			for train_step in range(max_train_steps):
+			# Initialize tensorflow session
+			with tf.Session() as sess:
+				sess.run(tf.global_variables_initializer())
+				training_time = 0.0
 
-				x_batch, y_batch = data.train.next_batch(batch_size)
-				nat_dict = {model.x_input: x_batch,
-							model.y_input: y_batch}
-
-				
-				if train_step % num_output_steps == 0:
-
-					# Update results
-					dict_exp = utils_model.update_dict(dict_exp, args, sess, model, test_dict, experiment)
-
-					# Print and Save current status
-					utils_print.print_metrics(sess, model, nat_dict, val_dict, test_dict, train_step, args, summary_writer, dict_exp, experiment, global_step)
-					saver.save(sess, directory+ '/checkpoints/checkpoint', global_step=global_step)
-				  
-					# Track best validation accuracy
-					val_acc = sess.run(model.accuracy, feed_dict=val_dict)
-					if val_acc > best_val_acc and train_step > min_train_steps:
-						best_val_acc = val_acc
-						num_iters = train_step
-						test_acc = sess.run(model.accuracy, feed_dict=test_dict)
-
-					# Check time
-					if train_step != 0:
-						print('    {} examples per second'.format(num_output_steps * batch_size / training_time))
-						training_time = 0.0
-
-				# Train model with current batch
-				start = timer()
-				sess.run(optimizer, feed_dict=nat_dict)
-				end = timer()
-				training_time += end - start
-		
-		
-			# Output final results for current experiment
-			utils_print.update_dict_output(dict_exp, experiment, sess, test_acc, model, test_dict, num_iters)
-			total_test_acc += test_acc
-			x_test, y_test = data.test.images, data.test.labels.reshape(-1)
-			best_model = utils_model.get_best_model(dict_exp, experiment, args, num_classes, batch_size, subset_ratio, num_features, spec, network_module)
-			utils_print.update_adv_acc(args, best_model, x_test, y_test, experiment, dict_exp)
+				best_val_acc, test_acc, num_iters = 0, 0, 0
 
 
-	utils_print.print_stability_measures(dict_exp, args, num_experiments, batch_size, subset_ratio, total_test_acc, max_train_steps, network_path)
+				# Iterate through each data batch
+				for train_step in range(max_train_steps):
+
+					x_batch, y_batch = data.train.next_batch(batch_size)
+					nat_dict = {model.x_input: x_batch,
+								model.y_input: y_batch}
+
+
+					if train_step % num_output_steps == 0:
+
+						# On ne print pas les résultats de validation à chaque step d'optimizer
+
+						# Update results
+						# dict_exp store les résultats des experiments
+						dict_exp = utils_model.update_dict(dict_exp, args, sess, model, test_dict, experiment)
+
+						# Print and Save current status
+						utils_print.print_metrics(sess, model, nat_dict, val_dict, test_dict, train_step, args, summary_writer, dict_exp, experiment, global_step)
+						saver.save(sess, directory+ '/checkpoints/checkpoint', global_step=global_step)
+
+						# Track best validation accuracy
+						val_acc = sess.run(model.accuracy, feed_dict=val_dict)
+						if val_acc > best_val_acc and train_step > min_train_steps:
+							best_val_acc = val_acc
+							num_iters = train_step
+							test_acc = sess.run(model.accuracy, feed_dict=test_dict)
+
+						# Check time
+						if train_step != 0:
+							print('    {} examples per second'.format(num_output_steps * batch_size / training_time))
+							training_time = 0.0
+
+					# Train model with current batch
+					# Ces simples lignes permettent de faire un forward pass,
+					# de calculer les losses (et d'updater ts les attributs du modèle),
+					# et de faire une step de l'optimizer sur les losses
+					start = timer()
+					sess.run(optimizer, feed_dict=nat_dict)
+					end = timer()
+					training_time += end - start
+
+
+				# Output final results for current experiment
+				utils_print.update_dict_output(dict_exp, experiment, sess, test_acc, model, test_dict, num_iters)
+				total_test_acc += test_acc
+				x_test, y_test = data.test.images, data.test.labels.reshape(-1)
+				# on isole le best model issu de la CV
+				best_model = utils_model.get_best_model(dict_exp, experiment, args, num_classes, batch_size, subset_ratio, num_features, spec, network_module)
+				utils_print.update_adv_acc(args, best_model, x_test, y_test, experiment, dict_exp)
+
+				## Saving the distillation outputs to reaccess them later
+				np.save('outputs/distillation_' + str(args.data_set) + '/h_layer_size_' + str(args.l1_size) + '_round_' +
+						str(distillation_round) + '_l2coef_' + str(args.l2) + '_alphacoef_' + str(args.alpha) + '.npy',
+						np.concatenate((sess.run(model.pre_softmax, feed_dict=val_dict),
+										sess.run(model.pre_softmax, feed_dict=train_dict))))
+
+
+		utils_print.print_stability_measures(dict_exp, args, num_experiments, batch_size, subset_ratio, total_test_acc, max_train_steps, network_path)
