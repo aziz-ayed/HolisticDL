@@ -171,6 +171,16 @@ def load_data_set(training_size, validation_size, data_set, seed=None, reshape=T
 
 def load_data_set_distillation(args, training_size, validation_size, distillation_round, seed=None, reshape=True, dtype=dtypes.float32):
 
+  if args.data_set == "cifar":
+    (X_train, y_train), (X_test, y_test) = tf.keras.datasets.cifar10.load_data() # Modified
+    num_features = X_train.shape[1]*X_train.shape[2]*X_train.shape[3]
+  if args.data_set == "mnist":
+    (X_train, y_train), (X_test, y_test) = tf.keras.datasets.mnist.load_data() # Modified
+    if not reshape:
+        X_train = X_train[:,:,:,np.newaxis]
+        X_test = X_test[:,:,:,np.newaxis]
+    num_features = X_train.shape[1]*X_train.shape[2]
+
   if "uci" in args.data_set.lower():
     uci_num = int(args.data_set[3:])
     full_data = np.load("../UCI/data" + str(uci_num) + ".pickle", allow_pickle=True)
@@ -181,13 +191,16 @@ def load_data_set_distillation(args, training_size, validation_size, distillatio
     print(np.mean(X_train, axis=0))
     num_features = X_train.shape[1]
 
-    y_normal = y_train
+
+  y_normal = y_train
 
   try:
     y_train = np.load('outputs/distillation_'+str(args.data_set)+'/h_layer_size_' + '_round_' +
                       str(distillation_round - 1) + '_l2coef_' + str(args.l2) + '.npy')
   except:
     print("Round 1")
+
+
 
   n = int(X_train.shape[0]*training_size)
   m = int(n*validation_size)
@@ -200,22 +213,23 @@ def load_data_set_distillation(args, training_size, validation_size, distillatio
   ######## À vérifier
   # Permute data
   #### Why permutation?
-  np.random.seed(seed)
-  perm0 = np.arange(X_train.shape[0])
-  np.random.shuffle(perm0)
-  X_train = X_train[perm0]
-  y_train = y_train[perm0]
-  y_normal = y_normal[perm0]
+  #np.random.seed(seed)
+  #perm0 = np.arange(X_train.shape[0])
+  #np.random.shuffle(perm0)
+  #X_train = X_train[perm0]
+  #y_train = y_train[perm0]
+  #y_normal = y_normal[perm0]
   ########
 
-  mean = np.mean(X_train, axis = 0)   # WTF 
-  s = np.std(X_train, axis=0)
-  X_train = (X_train - mean)/s
-  X_val = (X_val - mean) / s
-  X_test = (X_test - mean)/s
-  print(X_train.shape)
-  print(np.std(X_train, axis=0))
-  print(np.mean(X_train, axis=0))
+  if "uci" in args.data_set.lower():
+    mean = np.mean(X_train, axis = 0)   # WTF
+    s = np.std(X_train, axis=0)
+    X_train = (X_train - mean)/s
+    X_val = (X_val - mean) / s
+    X_test = (X_test - mean)/s
+    print(X_train.shape)
+    print(np.std(X_train, axis=0))
+    print(np.mean(X_train, axis=0))
 
   print("There are", X_train.shape[0], "samples in the training set.")
   print("There are", X_val.shape[0], "samples in the validation set.")
