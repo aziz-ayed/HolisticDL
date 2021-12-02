@@ -61,7 +61,7 @@ if rho == 0 and not is_stable and l0 == 0:
 # for distillation_round in range(args.n_distillations):
 if True:
 	distillation_round = args.n_distillations
-	summary_writer = tf.summary.FileWriter('outputs/logs/'+str(args.data_set)+'/h_layer_size' + '_round_' +
+	summary_writer = tf.summary.FileWriter('outputs/logs/'+str(args.data_set)+'/h_layer_size_' + '_round_' +
 		str(distillation_round) + '_l2coef_' + str(args.l2) + str(datetime.now())
 	)
 
@@ -171,7 +171,7 @@ if True:
 
 						# Print and Save current status
 						# À MODIFIER POUR PRINT EVOLUTION DES METRIQUES DE DISTILLATION
-						utils_print.print_metrics(sess, model, nat_dict, val_dict, test_dict, train_step, args, summary_writer, dict_exp, experiment, global_step)
+						utils_print.print_metrics(sess, model, train_dict, nat_dict, val_dict, val_dict_distil, test_dict, train_step, args, summary_writer, dict_exp, experiment, global_step)
 						saver.save(sess, directory+ '/checkpoints/checkpoint', global_step=global_step)
 
 						# Track best validation accuracy
@@ -208,8 +208,8 @@ if True:
 				np.save('outputs/distillation_' + str(args.data_set) + '/h_layer_size_' + '_round_' +
 						str(distillation_round) + '_l2coef_' + str(args.l2) + '.npy',
 						# ATTENTION: le faire pour le best model plutôt ! MAIS pq ne le fait-on pas plutôt après ts les experiments ?
-						np.concatenate((sess.run(best_model.pre_softmax, feed_dict=val_dict),
-										sess.run(best_model.pre_softmax, feed_dict=train_dict))))
+						np.concatenate((sess.run(model.pre_softmax, feed_dict=val_dict),
+										sess.run(model.pre_softmax, feed_dict=train_dict))))
 
 
 		utils_print.print_stability_measures(dict_exp, args, num_experiments, batch_size, subset_ratio, total_test_acc, max_train_steps, network_path)

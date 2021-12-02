@@ -35,7 +35,10 @@ class _DataSet(object):
     seed1, seed2 = random_seed.get_seed(seed)
     np.random.seed(seed1 if seed is None else seed2)
     if reshape:
-      labels = labels.reshape(labels.shape[0])    
+      try:
+        labels = labels.reshape(labels.shape[0])  
+      except:  
+        print("Labels has shape", labels.shape)
       images = images.reshape(images.shape[0], num_features)
 
     if dtype == dtypes.float32:
@@ -165,6 +168,7 @@ def load_data_set(training_size, validation_size, data_set, seed=None, reshape=T
 
   return _Datasets(train=train, validation=validation, test=test)
 
+
 def load_data_set_distillation(args, training_size, validation_size, distillation_round, seed=None, reshape=True, dtype=dtypes.float32):
 
   if "uci" in args.data_set.lower():
@@ -185,6 +189,14 @@ def load_data_set_distillation(args, training_size, validation_size, distillatio
   except:
     print("Round 1")
 
+  n = int(X_train.shape[0]*training_size)
+  m = int(n*validation_size)
+  X_val = X_train[:m]
+  y_val = y_train[:m]
+  y_val_normal = y_normal[:m]
+  X_train = X_train[m:n]
+  y_train = y_train[m:n]
+
   ######## À vérifier
   # Permute data
   #### Why permutation?
@@ -194,15 +206,7 @@ def load_data_set_distillation(args, training_size, validation_size, distillatio
   X_train = X_train[perm0]
   y_train = y_train[perm0]
   y_normal = y_normal[perm0]
-########
-
-  n = int(X_train.shape[0]*training_size)
-  m = int(n*validation_size)
-  X_val = X_train[:m]
-  y_val = y_train[:m]
-  y_val_normal = y_normal[:m]
-  X_train = X_train[m:n]
-  y_train = y_train[m:n]
+  ########
 
   mean = np.mean(X_train, axis = 0)   # WTF 
   s = np.std(X_train, axis=0)
