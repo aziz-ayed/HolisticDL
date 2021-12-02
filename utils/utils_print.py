@@ -12,24 +12,63 @@ with open('config.json') as config_file:
 
 w_vars, b_vars, stable_var, sparse_vars = init_MLP_vars()
 
-def print_metrics(sess, model, nat_dict, val_dict, test_dict, ii, args, summary_writer, dict_exp, experiment, global_step):
-    nat_acc = sess.run(model.accuracy, feed_dict=nat_dict)
-    test_acc = sess.run(model.accuracy, feed_dict=test_dict)
-    val_acc = sess.run(model.accuracy, feed_dict=val_dict)
-    nat_xent = sess.run(model.xent, feed_dict=nat_dict)
-    stable_xent = sess.run(model.stable_xent, feed_dict=nat_dict)
-    robust_xent = sess.run(model.robust_xent, feed_dict=nat_dict)
-    robust_stable_xent = sess.run(model.robust_stable_xent, feed_dict=nat_dict)
-    stable_var = sess.run(getattr(model, config['stability_variable']), feed_dict=nat_dict)
-
-
+def print_metrics(sess, model, train_dict, nat_dict, val_dict, val_dict_distil, test_dict, ii, args, summary_writer, dict_exp, experiment, global_step):
     print('Step {}:    ({})'.format(ii, datetime.now()))
-    print('    training nat accuracy {:.4}'.format(nat_acc * 100))
+    try:
+        nat_acc = sess.run(model.accuracy, feed_dict=nat_dict)
+        print('    batch training nat accuracy {:.4}'.format(nat_acc * 100))
+        nat_xent = sess.run(model.xent, feed_dict=nat_dict)
+        print('    Nat Xent {:.4}'.format(nat_xent))
+
+        stable_xent = sess.run(model.stable_xent, feed_dict=nat_dict)
+        robust_xent = sess.run(model.robust_xent, feed_dict=nat_dict)
+        robust_stable_xent = sess.run(model.robust_stable_xent, feed_dict=nat_dict)
+
+        train_l2 = sess.run(model.l2_loss, feed_dict=nat_dict)
+        print('    Batch Training L2 Loss {:.4}'.format(train_l2))
+
+    except:
+        train_distil_loss = sess.run(model.distil_loss, feed_dict=nat_dict)
+        print('    Batch Training Distillation L2 Teacher Student Loss {:.4}'.format(train_distil_loss))
+
+    # train_normal_acc = sess.run(model.accuracy, feed_dict=train_dict)
+    # print('    Training accuracy {:.4}'.format(train_normal_acc * 100))
+    # train_l2 = sess.run(model.l2_loss, feed_dict=train_dict)
+    # print('    Training L2 Loss Ground Truth {:.4}'.format(train_l2))
+    # summary3 = tf.Summary(value=[tf.Summary.Value(tag='TrainL2', simple_value=train_l2), ])
+    val_l2 = sess.run(model.l2_loss, feed_dict=val_dict)
+    print('    Validation L2 Loss Ground Truth {:.4}'.format(val_l2))
+    val_acc = sess.run(model.accuracy, feed_dict=val_dict)
     print('    validation nat accuracy {:.4}'.format(val_acc * 100))
-    print('    Nat Xent {:.4}'.format(nat_xent))
+
+    if args.n_distillations > 1:
+        train_l2 = sess.run(model.distil_loss, feed_dict=nat_dict)
+        print('    Training L2 Loss vs Teacher {:.4}'.format(train_l2))
+        val_distil_loss = sess.run(model.distil_loss, feed_dict=val_dict_distil)
+        print('    Validation L2 Loss Ground Truth {:.4}'.format(val_distil_loss))
+        summary7 = tf.Summary(value=[tf.Summary.Value(tag='ValTeacherL2', simple_value=val_distil_loss), ])
+        summary_writer.add_summary(summary7, global_step.eval(sess))
+
+    # summary1 = tf.Summary(value=[tf.Summary.Value(tag='TrainAcc', simple_value=train_normal_acc),])
+    summary2 = tf.Summary(value=[tf.Summary.Value(tag='ValAcc', simple_value=val_acc),])
+    summary4 = tf.Summary(value=[tf.Summary.Value(tag='ValL2', simple_value=val_l2), ])
+    summary6 = tf.Summary(value=[tf.Summary.Value(tag='TrainTeacherL2', simple_value=train_l2), ])
+    # summary_writer.add_summary(summary1, global_step.eval(sess))
+    summary_writer.add_summary(summary2, global_step.eval(sess))
+    # summary_writer.add_summary(summary3, global_step.eval(sess))
+    summary_writer.add_summary(summary4, global_step.eval(sess))
+    summary_writer.add_summary(summary6, global_step.eval(sess))
+    #summary_writer.add_text('args', str(args), global_step.eval(sess))
+    # summary5 = sess.run(model.summary, feed_dict=test_dict)
+    # summary_writer.add_summary(summary5, global_step.eval(sess))
+    test_acc = sess.run(model.accuracy, feed_dict=test_dict)
+    print('    Test accuracy {:.4}'.format(test_acc * 100))
+    # summary_writer.add_summary(test_acc, global_step.eval(sess))
 
     if args.is_stable:
+        stable_var = sess.run(getattr(model, config['stability_variable']), feed_dict=nat_dict)
         print('    Stability Variable {:.4}'.format(stable_var ))
+        print('    Stable Xent {:.4}'.format(stable_xent))
         print('    Stable Xent {:.4}'.format(stable_xent))
 
     if args.rho > 0 :
@@ -48,14 +87,16 @@ def print_metrics(sess, model, nat_dict, val_dict, test_dict, ii, args, summary_
     print('    Regularizer', regularizer)
 
 
-
-    summary = tf.Summary(value=[
-          tf.Summary.Value(tag='Train Xent', simple_value= nat_xent),
-          tf.Summary.Value(tag='Val Acc', simple_value= val_acc),
-          tf.Summary.Value(tag='Train Acc', simple_value= nat_acc),
-          tf.Summary.Value(tag='Train Stable Xent', simple_value= stable_xent),
-          tf.Summary.Value(tag='Train Robust Stable Xent', simple_value= robust_stable_xent),
-          tf.Summary.Value(tag='Test Acc', simple_value= test_acc)])
+    # try:
+    # summary = tf.Summary(value=[
+    #     tf.Summary.Value(tag='Train Xent', simple_value= nat_xent),
+    #     # tf.Summary.Value(tag='Val Acc', simple_value= val_acc),
+    #     tf.Summary.Value(tag='Train Acc', simple_value= nat_acc),
+    #     tf.Summary.Value(tag='Train Stable Xent', simple_value= stable_xent),
+    #     tf.Summary.Value(tag='Train Robust Stable Xent', simple_value= robust_stable_xent),
+    #     tf.Summary.Value(tag='Test Acc', simple_value= test_acc)])
+    # except:
+        # pass
 
     for i in range(len(w_vars)):
         if args.l0 > 0:
