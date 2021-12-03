@@ -94,6 +94,7 @@ if True:
 
 		# Set up experiments
 		total_test_acc = 0
+		total_train_acc = 0
 		num_experiments, dict_exp, output_dir = init_experiements(config, args, num_classes, num_features, data)
 
 		if not os.path.exists(output_dir):
@@ -146,7 +147,7 @@ if True:
 				sess.run(tf.global_variables_initializer())
 				training_time = 0.0
 
-				best_val_acc, test_acc, num_iters = 0, 0, 0
+				best_val_acc, test_acc, num_iters, train_acc = 0, 0, 0, 0
 
 				# Iterate through each data batch
 				for train_step in range(max_train_steps):
@@ -180,6 +181,7 @@ if True:
 							best_val_acc = val_acc
 							num_iters = train_step
 							test_acc = sess.run(model.accuracy, feed_dict=test_dict)
+							train_acc = sess.run(model.accuracy, feed_dict=train_dict)
 
 						# Check time
 						if train_step != 0:
@@ -199,6 +201,7 @@ if True:
 				# Output final results for current experiment
 				utils_print.update_dict_output(dict_exp, experiment, sess, test_acc, model, test_dict, num_iters)
 				total_test_acc += test_acc
+				total_train_acc += train_acc
 				x_test, y_test = data.test.images, data.test.labels.reshape(-1)
 				# on isole le best model issu de la CV
 				best_model = utils_model.get_best_model(dict_exp, experiment, args, num_classes, batch_size, subset_ratio, num_features, spec, network_module)
@@ -212,4 +215,4 @@ if True:
 										sess.run(model.pre_softmax, feed_dict=train_dict))))
 
 
-		utils_print.print_stability_measures(dict_exp, args, num_experiments, batch_size, subset_ratio, total_test_acc, max_train_steps, network_path)
+		utils_print.print_stability_measures(dict_exp, args, num_experiments, batch_size, subset_ratio, total_test_acc, total_train_acc, max_train_steps, network_path)

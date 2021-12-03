@@ -31,11 +31,11 @@ def print_metrics(sess, model, train_dict, nat_dict, val_dict, val_dict_distil, 
         train_distil_loss = sess.run(model.distil_loss, feed_dict=nat_dict)
         print('    Batch Training Distillation L2 Teacher Student Loss {:.4}'.format(train_distil_loss))
 
-    # train_normal_acc = sess.run(model.accuracy, feed_dict=train_dict)
-    # print('    Training accuracy {:.4}'.format(train_normal_acc * 100))
-    # train_l2 = sess.run(model.l2_loss, feed_dict=train_dict)
-    # print('    Training L2 Loss Ground Truth {:.4}'.format(train_l2))
-    # summary3 = tf.Summary(value=[tf.Summary.Value(tag='TrainL2', simple_value=train_l2), ])
+    train_normal_acc = sess.run(model.accuracy, feed_dict=train_dict)
+    print('    Training accuracy {:.4}'.format(train_normal_acc * 100))
+    train_l2 = sess.run(model.l2_loss, feed_dict=train_dict)
+    print('    Training L2 Loss Ground Truth {:.4}'.format(train_l2))
+    summary3 = tf.Summary(value=[tf.Summary.Value(tag='TrainL2', simple_value=train_l2), ])
     val_l2 = sess.run(model.l2_loss, feed_dict=val_dict)
     print('    Validation L2 Loss Ground Truth {:.4}'.format(val_l2))
     val_acc = sess.run(model.accuracy, feed_dict=val_dict)
@@ -129,14 +129,15 @@ def update_adv_acc(args, best_model, x_test, y_test, experiment, dict_exp):
             dict_exp['adv_test_accs'][rho_test][experiment] = sess.run(best_model.accuracy, feed_dict=adv_dict)
 
 
-def print_stability_measures(dict_exp, args, num_experiments, batch_size, subset_ratio, tot_test_acc, max_train_steps, network_path):
+def print_stability_measures(dict_exp, args, num_experiments, batch_size, subset_ratio, tot_test_acc, tot_train_acc, max_train_steps, network_path):
 
     avg_test_acc = tot_test_acc / num_experiments
+    avg_train_acc = tot_train_acc / num_experiments
     std = np.array([float(k) for k in dict_exp['test_accs']]).std()
     logit_stability = np.mean(np.std(dict_exp['logits_acc'], axis=0), axis=0)
     gini_stability = total_gini(dict_exp['preds'].transpose())
 
-
+    print('  Average training accuracy {:.4}'.format(avg_train_acc * 100))
     print('  Average testing accuracy {:.4}'.format(avg_test_acc * 100))
     print('  Individual accuracies: \n', dict_exp['test_accs'])
     print('  Adv testing accuracies', dict_exp['adv_test_accs'])
