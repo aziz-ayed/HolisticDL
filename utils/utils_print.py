@@ -37,7 +37,9 @@ def print_metrics(sess, model, train_dict, nat_dict, val_dict, val_dict_distil, 
     print('    Training L2 Loss Ground Truth {:.4}'.format(train_l2))
     summary3 = tf.Summary(value=[tf.Summary.Value(tag='TrainL2', simple_value=train_l2), ])
     val_l2 = sess.run(model.l2_loss, feed_dict=val_dict)
-    print('    Validation L2 Loss Ground Truth {:.4}'.format(val_l2))
+    print('    Val L2 Loss Ground Truth {:.4}'.format(val_l2))
+    test_l2 = sess.run(model.l2_loss, feed_dict=test_dict)
+    print('    Test L2 Loss Ground Truth {:.4}'.format(test_l2))
     val_acc = sess.run(model.accuracy, feed_dict=val_dict)
     print('    validation nat accuracy {:.4}'.format(val_acc * 100))
 
