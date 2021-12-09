@@ -18,12 +18,14 @@ def get_loss(model, args):
     if args.n_distillations == 1:
         loss = model.xent + model.regularizer
     elif args.n_distillations > 1:
+        # loss = model.xent + model.regularizer
         loss = model.distil_loss + model.regularizer
 
     # TODO: continuer de rajouter conditions sur self_distill pr les différentes losses 
     if args.rho and not args.is_stable:
         if args.n_distillations > 1:
             loss = model.distil_robust_y_xent
+            # loss = model.distil_loss
         elif args.n_distillations == 1:
             loss = model.robust_xent
 
@@ -31,11 +33,13 @@ def get_loss(model, args):
         if args.rho:
             if args.n_distillations > 1:
                 loss = model.distil_robust_stable_xent
+                # loss = model.distil_loss
             elif args.n_distillations == 1:
                 loss = model.robust_stable_xent
         else:
             if args.n_distillations > 1:
                 loss = model.distil_stable_xent
+                # loss = model.distil_loss
             elif args.n_distillations == 1:
                 loss = model.stable_xent
                 

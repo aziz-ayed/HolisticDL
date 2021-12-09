@@ -9,6 +9,7 @@ from __future__ import print_function
 import sys
 sys.path.append('../utils')
 
+import tensorflow as tf
 import importlib.machinery
 import importlib.util
 from datetime import datetime
@@ -57,10 +58,15 @@ if rho == 0 and not is_stable and l0 == 0:
 	min_train_steps = 0
 
 # À NE PAS METTRE ICI
-for distillation_round in range(args.n_distillations):
+# for distillation_round in range(args.n_distillations):
+if True:
+	distillation_round = args.n_distillations
+	summary_writer = tf.summary.FileWriter('outputs/logs/'+str(args.data_set)+'/h_layer_size_' + '_round_' +
+		str(distillation_round) + '_l2coef_' + str(args.l2) + str(datetime.now())
+	)
 
 	# Training Loop for cross validation
-	# RMQ : NE CHANGE RIEN POUR UNE BATCH SIZE ET UN SUBSET RATIO FIXÉS !!!
+	# RMQ : NE CHANGE RIEN POUR UNE BATCH SIZE ET UN SUBSET RATIO FIXÉS !!! => inutile
 	for batch_size, subset_ratio in itertools.product(batch_range, stab_ratio_range):
 
 		print("Batch Size:", batch_size, " ; stability subset ratio:", subset_ratio, " ; dropout value:", dropout)
@@ -88,12 +94,12 @@ for distillation_round in range(args.n_distillations):
 
 		# Set up experiments
 		total_test_acc = 0
+		total_train_acc = 0
 		num_experiments, dict_exp, output_dir = init_experiements(config, args, num_classes, num_features, data)
 
 		if not os.path.exists(output_dir):
 			os.makedirs(output_dir)
 
-		# METTRE LA FOR LOOP SUR LES DISTILLATION ROUNDS ICI!!!
 
 		# Training loop for each fold (!!!)
 		# Pas vraiment pour each fold ; davantage pour des seeds différentes, qui affectent l'init du model ET le splitting du dataset
@@ -107,14 +113,31 @@ for distillation_round in range(args.n_distillations):
 			# Shuffle and split training/vaidation/testing sets
 
 			seed_i = seed*(experiment+1)
-			data = input_data.load_data_set(training_size = train_size, validation_size=val_size, data_set=data_set, seed=seed_i)
+			data = input_data.load_data_set_distillation(args=args, training_size=train_size, validation_size=val_size, seed=seed_i, distillation_round=distillation_round)
+
 
 			# Set up data sets for validation and testing
-			val_dict = {model.x_input: data.validation.images,
-						  model.y_input: data.validation.labels.reshape(-1)}
+			# val_dict = {model.x_input: data.validation.images,
+			# 			  model.y_input: data.validation.labels.reshape(-1)}
 
-			test_dict = {model.x_input: data.test.images,
-						  model.y_input: data.test.labels.reshape(-1)}
+			# test_dict = {model.x_input: data.test.images,
+			# 			  model.y_input: data.test.labels.reshape(-1)}
+
+			#Setting up data for testing and validation
+			train_dict = {model.x_input: data.train_normal.images,
+						model.y_input: data.train_normal.labels.reshape(-1)}
+			if distillation_round > 1:
+				val_dict = {model.x_input: data.val_normal.images,
+							model.y_input: data.val_normal.labels.reshape(-1)}
+				val_dict_distil = {model.x_input: data.validation.images,
+							model.y_input_distil: data.validation.labels}
+			else:
+				val_dict = {model.x_input: data.validation.images,
+							model.y_input: data.validation.labels.reshape(-1)}
+				val_dict_distil = val_dict
+			test_dict = {model.x_input: data.test.images, #[:testing_size],
+							model.y_input: data.test.labels.reshape(-1)} #[:testing_size].reshape(-1)}
+
 
 
 			# Initialize tensorflow session
@@ -124,13 +147,19 @@ for distillation_round in range(args.n_distillations):
 				sess.run(tf.global_variables_initializer())
 				training_time = 0.0
 
-				best_val_acc, test_acc, num_iters = 0, 0, 0
+				best_val_acc, test_acc, num_iters, train_acc = 0, 0, 0, 0
 
 				# Iterate through each data batch
 				for train_step in range(max_train_steps):
 
 					x_batch, y_batch = data.train.next_batch(batch_size)
-					nat_dict = {model.x_input: x_batch,
+					# nat_dict = {model.x_input: x_batch,
+					# 			model.y_input: y_batch}
+					if distillation_round > 1:
+						nat_dict = {model.x_input: x_batch,
+									model.y_input_distil: y_batch}
+					else:
+						nat_dict = {model.x_input: x_batch,
 								model.y_input: y_batch}
 
 
@@ -142,7 +171,8 @@ for distillation_round in range(args.n_distillations):
 						dict_exp = utils_model.update_dict(dict_exp, args, sess, model, test_dict, experiment)
 
 						# Print and Save current status
-						utils_print.print_metrics(sess, model, nat_dict, val_dict, test_dict, train_step, args, summary_writer, dict_exp, experiment, global_step)
+						# À MODIFIER POUR PRINT EVOLUTION DES METRIQUES DE DISTILLATION
+						utils_print.print_metrics(sess, model, train_dict, nat_dict, val_dict, val_dict_distil, test_dict, train_step, args, summary_writer, dict_exp, experiment, global_step)
 						saver.save(sess, directory+ '/checkpoints/checkpoint', global_step=global_step)
 
 						# Track best validation accuracy
@@ -151,6 +181,7 @@ for distillation_round in range(args.n_distillations):
 							best_val_acc = val_acc
 							num_iters = train_step
 							test_acc = sess.run(model.accuracy, feed_dict=test_dict)
+							train_acc = sess.run(model.accuracy, feed_dict=train_dict)
 
 						# Check time
 						if train_step != 0:
@@ -170,17 +201,18 @@ for distillation_round in range(args.n_distillations):
 				# Output final results for current experiment
 				utils_print.update_dict_output(dict_exp, experiment, sess, test_acc, model, test_dict, num_iters)
 				total_test_acc += test_acc
+				total_train_acc += train_acc
 				x_test, y_test = data.test.images, data.test.labels.reshape(-1)
 				# on isole le best model issu de la CV
 				best_model = utils_model.get_best_model(dict_exp, experiment, args, num_classes, batch_size, subset_ratio, num_features, spec, network_module)
 				utils_print.update_adv_acc(args, best_model, x_test, y_test, experiment, dict_exp)
 
 				## Saving the distillation outputs to reaccess them later
-				np.save('outputs/distillation_' + str(args.data_set) + '/h_layer_size_' + str(args.l1_size) + '_round_' +
-						str(distillation_round) + '_l2coef_' + str(args.l2) + '_alphacoef_' + str(args.alpha) + '.npy',
+				np.save('outputs/distillation_' + str(args.data_set) + '/h_layer_size_' + '_round_' +
+						str(distillation_round) + '_l2coef_' + str(args.l2) + '.npy',
 						# ATTENTION: le faire pour le best model plutôt ! MAIS pq ne le fait-on pas plutôt après ts les experiments ?
 						np.concatenate((sess.run(model.pre_softmax, feed_dict=val_dict),
 										sess.run(model.pre_softmax, feed_dict=train_dict))))
 
 
-		utils_print.print_stability_measures(dict_exp, args, num_experiments, batch_size, subset_ratio, total_test_acc, max_train_steps, network_path)
+		utils_print.print_stability_measures(dict_exp, args, num_experiments, batch_size, subset_ratio, total_test_acc, total_train_acc, max_train_steps, network_path)

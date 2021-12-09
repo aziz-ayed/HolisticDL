@@ -1,0 +1,4 @@
+model_checkpoint_path: "checkpoint-4001"
+all_model_checkpoint_paths: "checkpoint-2001"
+all_model_checkpoint_paths: "checkpoint-3001"
+all_model_checkpoint_paths: "checkpoint-4001"
